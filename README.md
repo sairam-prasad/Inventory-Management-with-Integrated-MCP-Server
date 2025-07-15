@@ -31,15 +31,15 @@ The system includes two independent services:
 
 1. git clone https://github.com/sairam-prasad/Inventory-Management-with-Integrated-MCP-Server.git
 2. cd Inventory-Management-with-Integrated-MCP-Server
-3. Run inventory service \n
-  cd inventory-service \n
-  pip install -r requirements.txt \n
-  uvicorn main:app --reload --port 8000 \n
-4. Run MCP server
-   cd ../mcp-server
-   pip install -r requirements.txt
-   create a .env file inside MCP server and include OPENROUTER_API_KEY=your_openrouter_api_key
-   uvicorn main:app --reload --port 9000
+3. Run inventory service  
+  cd inventory-service  
+  pip install -r requirements.txt  
+  uvicorn main:app --reload --port 8000  
+4. Run MCP server  
+   cd ../mcp-server  
+   pip install -r requirements.txt  
+   create a .env file inside MCP server and include OPENROUTER_API_KEY=your_openrouter_api_key  
+   uvicorn main:app --reload --port 9000  
 
 ## Postman endpoints 
 
