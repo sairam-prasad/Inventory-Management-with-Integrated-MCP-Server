@@ -8,7 +8,7 @@ app = FastAPI(title="Inventory Web Service")
 # Enable CORS so this service can be called from the MCP server running on another port
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # In production, use a specific origin
+    allow_origins=["*"],      
     allow_methods=["*"],
     allow_headers=["*"],
 )
