@@ -94,7 +94,7 @@ Respond ONLY with raw JSON. No markdown. No explanations.
                 status_code=400,
                 detail="Could not parse model response. Please try a clearer query like 'I added 5 tshirts'."
             )
-
+        
         if parsed.get("method") == "GET":
             return requests.get(INVENTORY_API_URL).json()
 
@@ -113,6 +113,7 @@ Respond ONLY with raw JSON. No markdown. No explanations.
                 status_code=400,
                 detail="Model response did not contain a valid operation. Please try again."
             )
-
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OpenAI + LangChain error: {str(e)}")
