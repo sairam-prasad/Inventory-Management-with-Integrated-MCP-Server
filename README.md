@@ -1,16 +1,16 @@
 # Inventory Management with Integrated MCP Server
 
-This project is a backend system that combines traditional RESTful API design with a GenAI-powered natural language interface. It was developed as part of a technical internship evaluation to demonstrate the ability to build modular backend services, integrate LLMs into workflows, and handle realistic edge cases.
+This project is a backend system that combines traditional RESTful API design with a GenAI-powered natural language interface. It was developed to demonstrate the ability to build modular backend services, integrate LLMs into workflows, and handle realistic edge cases.
 
 ## Overview
 
 The system includes two independent services:
 
 1. **Inventory Web Service**  
-   - Tracks inventory for `tshirts` and `pants`
+   - Tracks inventory for 'tshirts' and 'pants'
    - Provides two endpoints:  
-     - `GET /inventory` – Returns current stock  
-     - `POST /inventory` – Modifies stock based on request
+     - 'GET /inventory' – Returns current stock  
+     - 'POST /inventory' – Modifies stock based on request
 
 2. **Model Control Plane (MCP) Server**  
    - Accepts natural language queries (e.g., "I sold 4 tshirts")  
@@ -22,7 +22,7 @@ The system includes two independent services:
 
 - Python 3.10+
 - FastAPI
-- OpenRouter (LLM: Gemma)
+- OpenAI
 - Requests
 - Pydantic
 - dotenv for environment variables
