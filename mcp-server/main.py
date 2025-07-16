@@ -1,111 +1,118 @@
 import os
-import requests
 import json
+import requests
+from typing import List
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# Load OpenRouter API key from .env (secure practice)
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_openai import ChatOpenAI
+
+# Load API key
 load_dotenv()
-api_key = os.getenv("OPENROUTER_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Initialize FastAPI for the MCP (GenAI control layer)
-app = FastAPI(title="MCP Server – GenAI Control Plane")
-
-# Inventory API URL this MCP server will control
+# Constants
 INVENTORY_API_URL = "http://localhost:8000/inventory"
+VALID_ITEMS = ["tshirts", "pants"]
 
-# Input model for user query from frontend or CLI
+# FastAPI app
+app = FastAPI(title="MCP Server – OpenAI + LangChain")
+
 class QueryRequest(BaseModel):
     user_query: str
 
+# Initialize OpenAI
+llm = ChatOpenAI(
+    model="gpt-3.5-turbo",
+    temperature=0,
+    openai_api_key=OPENAI_API_KEY
+)
+
 @app.post("/query")
 def handle_query(request: QueryRequest):
-    # Prompt is carefully designed to:
-    # - generalize to many verbs (add, buy, ship, etc.)
-    # - assume user is managing inventory (clarifies intent)
-    # - output only JSON (easy to parse)
-    prompt = f"""
-You are a backend controller assistant for an inventory system.
+    system_prompt = """
+You are an inventory control assistant. You ONLY support two operations:
+1. Checking current stock (GET)
+2. Updating stock of tshirts or pants (POST)
 
-You receive natural language queries related to two items: "tshirts" and "pants".
+Return one of the following JSON formats:
+{
+  "method": "GET"
+}
+or
+{
+  "method": "POST",
+  "json": {
+    "item": "tshirts",
+    "change": -3
+  }
+}
 
-Your task is to return a JSON object with:
-- "method": either "GET" or "POST"
-- If "POST", include a "json" object with:
-    - "item": one of "tshirts" or "pants"
-    - "change": an integer:
-        - Positive if inventory is increased (e.g., restocked, added, bought, received)
-        - Negative if inventory is decreased (e.g., sold, gave away, shipped, used, removed)
+Only valid items are "tshirts" and "pants". Never use any other items.
 
-Assume:
-- The user is managing their own inventory.
-- Interpret intent from context, even if synonyms or indirect phrases are used.
-- Do not ask follow-up questions.
+Interpret intent clearly:
+- Actions like "bought", "restocked", "added", "received", or "borrowed" or any other synonyms like this mean INCREASE the count (+).
+- Actions like "sold", "used", "gave away", "removed", or "donated" mean DECREASE the count (-).
 
-Respond with only a raw JSON object. No explanations. No markdown.
-Query: "{request.user_query}"
+
+If the request is unclear, missing, or confusing, reply with:
+{
+  "method": "ERROR",
+  "message": "Could not understand the query. Please mention tshirts or pants clearly."
+}
+Example:
+Input: "I borrowed 3 tshirts"
+Output:
+{
+  "method": "POST",
+  "json": {
+    "item": "tshirts",
+    "change": 3
+  }
+}
+Respond ONLY with raw JSON. No markdown. No explanations.
 """
 
     try:
-        # Prepare request to OpenRouter to call LLM (Gemma free-tier)
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
+        messages: List[BaseMessage] = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=request.user_query)
+        ]
 
-        payload = {
-            "model": "google/gemma-3n-e2b-it:free",
-            "messages": [{"role": "user", "content": prompt}]
-        }
+        result = llm.invoke(messages)
+        content = result.content.strip()
+        content = content.replace("```json", "").replace("```", "").strip()
+        print(content)
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not parse model response. Please try a clearer query like 'I added 5 tshirts'."
+            )
 
-        # Send request to LLM
-        response = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=payload
-        )
-
-        # Parse LLM response
-        data = response.json()
-        print(data)
-        gen_response = data["choices"][0]["message"]["content"].strip()
-        print("LLM Response:\n", gen_response)
-
-        # Case 1: "GET" request, directly return current inventory
-        if "GET" in gen_response:
+        if parsed.get("method") == "GET":
             return requests.get(INVENTORY_API_URL).json()
 
-        # Case 2: "POST" – inventory modification request
-        elif "POST" in gen_response:
-            import re
+        elif parsed.get("method") == "POST":
+            payload = parsed.get("json", {})
+            item = payload.get("item")
+            if item not in VALID_ITEMS:
+                raise HTTPException(status_code=400, detail=f"Invalid item: {item}")
+            return requests.post(INVENTORY_API_URL, json=payload).json()
 
-            # Try to extract raw JSON block (supporting Markdown-wrapped or plain text)
-            match = re.search(r'```json\s*({.*?})\s*```', gen_response, re.DOTALL)
-            if match:
-                payload_str = match.group(1)
-            else:
-                # Fallback: find first {...} block
-                payload_start = gen_response.find("{")
-                payload_end = gen_response.rfind("}")
-                payload_str = gen_response[payload_start:payload_end+1]
-
-            # Parse extracted JSON string
-            try:
-                payload = json.loads(payload_str)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Could not parse JSON payload: {e}")
-
-            # Validate and forward the payload to the inventory service
-            if payload.get("method") == "POST" and "json" in payload:
-                return requests.post(INVENTORY_API_URL, json=payload["json"]).json()
-            else:
-                raise HTTPException(status_code=400, detail="Invalid structure in LLM response")
+        elif parsed.get("method") == "ERROR":
+            raise HTTPException(status_code=400, detail=parsed.get("message"))
 
         else:
-            # Handle unexpected or incomplete responses
-            raise HTTPException(status_code=400, detail="Could not parse response")
+            raise HTTPException(
+                status_code=400,
+                detail="Model response did not contain a valid operation. Please try again."
+            )
 
     except Exception as e:
-        # Fallback error handler for debugging or network errors
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"OpenAI + LangChain error: {str(e)}")
