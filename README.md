@@ -14,7 +14,7 @@ The system includes two independent services:
 
 2. **Model Control Plane (MCP) Server**  
    - Accepts natural language queries (e.g., "I sold 4 tshirts")  
-   - Converts them into structured API calls using a language model (Gemma via OpenRouter)
+   - Converts them into structured API calls using a language model (OpenAI)
    - Calls the appropriate endpoint on the Inventory Web Service
 
 
@@ -38,7 +38,7 @@ The system includes two independent services:
 4. Run MCP server  
    cd ../mcp-server  
    pip install -r requirements.txt  
-   create a .env file inside MCP server and include OPENROUTER_API_KEY=your_openrouter_api_key  
+   create a .env file inside MCP server and include OPENAI_API_KEY=your_open_ai_api_key  
    uvicorn main:app --reload --port 9000  
 
 ## Postman endpoints 
